@@ -170,29 +170,38 @@ void Transform::EndTRM(CDPoint os)
 }
 
 // Scale with rotation and mirroring
-CPoint Transform::Scale(CDPoint p) const
+CPoint Transform::Scale(const CDPoint& p) const
 {
+	return Scale(p.x, p.y);
+}
 
+CPoint Transform::Scale( double x, double y ) const
+{
 	// Do we mirror?
 	if ( (rotmir & 4) != 0)
 	{
-		p = CDPoint(-p.x, p.y);
+		x = -x;
 	}
 
 	switch (rotmir & 3)
 	{
+		double t;
 		case 1: // Down
-			p = CDPoint(p.x, -p.y);
+			y = -y;
 			break;
 		case 2: // Left
-			p = CDPoint(p.y, p.x);
+			t = x;
+			x = y;
+			y = t;
 			break;
 		case 3: // Right
-			p = CDPoint(-p.y, p.x);
+			t = x;
+			x = -y;
+			y = t;
 			break;
 	}
 
-	return CPoint(ScaleX(p.x), ScaleY(p.y));
+	return CPoint(ScaleX(x), ScaleY(y));
 }
 
 // Rotate a direction (for power, pins etc)

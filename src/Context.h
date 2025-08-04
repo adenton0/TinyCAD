@@ -159,7 +159,8 @@ public:
 	int GetRotMir() const;
 
 	// Convert from internal coord into window coords
-	CPoint Scale(CDPoint) const;
+	CPoint Scale(double x, double y) const;
+	CPoint Scale(const CDPoint&) const;
 	inline double doubleScale(double a) const { return a * m_zoom; }
 
 	CRect Scale(CDRect r) const;

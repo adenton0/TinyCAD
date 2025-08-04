@@ -93,22 +93,24 @@ void CTinyCadView::OnDraw(CDC* pDC)
 			dc.SelectBrush(cOFFPAGE);
 			dc.SelectPen(PS_SOLID, 1, cOFFPAGE);
 
-			if (End.x > GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().x)
+			CPoint const pgBoundsPt = GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint();
+
+			if (End.x > pgBoundsPt.x)
 			{
-				CDPoint a = CDPoint(GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().x, 0);
+				CDPoint a = CDPoint(pgBoundsPt.x, 0);
 				dc.Rectangle(CDRect(a.x, a.y, End.x, End.y));
 			}
-			if (End.y > GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().y)
+			if (End.y > pgBoundsPt.y)
 			{
-				CDPoint a = CDPoint(Start.x, GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().y);
+				CDPoint a = CDPoint(Start.x, pgBoundsPt.y);
 				dc.Rectangle(CDRect(a.x, a.y, End.x, End.y));
 			}
 			if (Start.x < 0) dc.Rectangle(CDRect(0, Start.y, Start.x, End.y));
 			if (Start.y < 0) dc.Rectangle(CDRect(Start.x, 0, End.x, Start.y));
 
 			// Fill this region with a grid
-			double grid = GetCurrentDocument()->m_snap.GetGrid();
-			double SGrid = dc.GetTransform().doubleScale(grid);
+			double const grid = GetCurrentDocument()->m_snap.GetGrid();
+			double const SGrid = dc.GetTransform().doubleScale(grid);
 			if (GetCurrentDocument()->GetOptions()->ShowGrid() && SGrid > 10)
 			{
 				double x = dc.GetTransform().GetOrigin().x;
@@ -120,12 +122,52 @@ void CTinyCadView::OnDraw(CDC* pDC)
 				x = s.Snap(x);
 				y = s.Snap(y);
 
-				for (double xp = x >= 0 ? x : 0; xp < End.x && xp < GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().x; xp += grid)
+				COLORREF gpcolor = RGB( 0, 0, 0 );  // Default color of grid-point (== black)
+				int      pixelSz = 1 + static_cast<int>(SGrid / 16.);
+				if ((pixelSz & 1) == 0)
 				{
-					for (double yp = y >= 0 ? y : 0; yp < End.y && yp < GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().y; yp += grid)
+					// Make even-sized pixel 1 larger so CENTER-ABLE on the grid point, but make GRAY so less obtrusive.
+					++pixelSz;
+					gpcolor = RGB(112, 112, 112);
+				}
+
+				int   const   pixmid  = pixelSz / 2;
+				CDC*  const   dcDC    = dc.GetDC();
+				bool  const   asPixel = (pixelSz < 3);
+				CPen   gPen  , *pOldPen = nullptr;
+				CBrush gBrush, *pOldBru = nullptr;
+
+				if (!asPixel)
+				{
+					gPen.CreatePen(PS_SOLID, 1, gpcolor);
+					gBrush.CreateSolidBrush(gpcolor);
+					pOldPen = dcDC->SelectObject(&gPen);
+					pOldBru = dcDC->SelectObject(&gBrush);
+				}
+
+				for (double xp = (x >= 0) ? x : 0; xp < End.x && xp < pgBoundsPt.x; xp += grid)
+				{
+					for (double yp = (y >= 0) ? y : 0; yp < End.y && yp < pgBoundsPt.y; yp += grid)
 					{
-						dc.SetPixel(CDPoint(xp, yp), 0);
+						CPoint const q = dc.GetTransform().Scale(xp, yp);
+						if (pixelSz <= 1)
+						{
+							dcDC->SetPixel(q.x, q.y, gpcolor);
+						}
+						else
+						{
+							// Make grid points larger (easier to see) when 'zoomed in'
+							int const qxn = q.x - pixmid;
+							int const qyn = q.y - pixmid;
+							dcDC->Ellipse(qxn, qyn, qxn + pixelSz, qyn + pixelSz);
+						}
 					}
+				}
+
+				if (!asPixel)
+				{
+					dcDC->SelectObject(pOldPen);
+					dcDC->SelectObject(pOldBru);
 				}
 			}
 		}
