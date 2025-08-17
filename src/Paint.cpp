@@ -363,54 +363,75 @@ void CTinyCadView::OnSize(UINT a, int cx, int cy)
 void CTinyCadView::SetScroll(double NewX, double NewY, bool first)
 {
 	CRect rect;
-	int px, py;
 
 	// How big is the current window?
 	GetClientRect(rect);
 
+	Transform&       trnsFrm = GetTransform();
+	CDetails  const& details = GetCurrentDocument()->GetDetails();
+
 	// Convert region into internal co-ords
-	px = static_cast<int> (GetTransform().doubleDeScale(rect.right));
-	py = static_cast<int> (GetTransform().doubleDeScale(rect.bottom));
+	int const px = static_cast<int> (trnsFrm.doubleDeScale(rect.right));
+	int const py = static_cast<int> (trnsFrm.doubleDeScale(rect.bottom));
 
 	// Allow a 10% overlap
-	CDPoint xlap = GetCurrentDocument()->GetDetails().GetOverlap();
-	int Xlap = static_cast<int> (xlap.x);
-	int Ylap = static_cast<int> (xlap.y);
+	CDPoint const xlap ( details.GetOverlap() );
+	int const Xlap = static_cast<int> (xlap.x);
+	int const Ylap = static_cast<int> (xlap.y);
+
+	CPoint const pgBoundPt ( details.GetPageBoundsAsPoint() );
 
 	// Now does this fit?
-	if (px + NewX > GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().x + Xlap) NewX = GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().x + Xlap - px;
-	if (py + NewY > GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().y + Ylap) NewY = GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().y + Ylap - py;
+	if (px + NewX > pgBoundPt.x + Xlap) NewX = pgBoundPt.x + Xlap - px;
+	if (py + NewY > pgBoundPt.y + Ylap) NewY = pgBoundPt.y + Ylap - py;
 	if (NewX < -Xlap) NewX = -Xlap;
 	if (NewY < -Ylap) NewY = -Ylap;
 
-	if (first || GetTransform().GetOrigin() != CDPoint(NewX, NewY) || m_old_zoom_factor != GetTransform().GetZoomFactor())
+	//N.B. Originally there was a test here:
+	//if( first || trnsFrm.GetOrigin() != CDPoint(NewX, NewY) || m_old_zoom_factor != trnsFrm.GetZoomFactor())
+	//however that is too restrictive and leads to mis-sized scrollbars at times.  Safest to always do it.
+	//if (true)
 	{
-		GetTransform().SetOriginX(NewX);
-		GetTransform().SetOriginY(NewY);
+		TRACE("Paint-SetScroll %g,%g rectTLBR(%d,%d,%d,%d) tgB(%ld,%ld) t.dDS(rW)=%g t.O(%g,%g) t.Z=%g\n", NewX, NewY,
+			(int)rect.top,(int)rect.left,(int)rect.bottom,(int)rect.right,
+			(long)pgBoundPt.x, (long)pgBoundPt.y,
+			trnsFrm.doubleDeScale(rect.Width()),
+			(double)trnsFrm.GetOrigin().x, (double)trnsFrm.GetOrigin().y,
+			trnsFrm.GetZoomFactor()
+			);
+
+		trnsFrm.SetOriginX(NewX);
+		trnsFrm.SetOriginY(NewY);
+
+		// N.B. Below calls to SetScrollInfo() are CWnd::SetScrollInfo not ::SetScrollInfo.
+		// Unfortunately CWnd::SetScrollInfo takes LPSCROLLINFO not LPCSCROLLINFO
+		// hence we must "play it safe" and re-initialize the entire `si' even though
+		// "under the hood" it's almost certainly unnecessary.  Sigh...
 
 		SCROLLINFO si;
-		si.cbSize = sizeof(SCROLLINFO);
-		si.nMin = 0;
-		si.nMax = GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().x + Xlap * 2;
-		si.nPage = static_cast<int> (GetTransform().doubleDeScale(rect.Width()));
-		si.nPos = static_cast<int> (GetTransform().GetOrigin().x) + Xlap;
-		si.fMask = SIF_PAGE | SIF_POS | SIF_RANGE | SIF_DISABLENOSCROLL;
-		SetScrollInfo(SB_HORZ, &si, TRUE);
 
 		si.cbSize = sizeof(SCROLLINFO);
-		si.nMin = 0;
-		si.nMax = GetCurrentDocument()->GetDetails().GetPageBoundsAsPoint().y + Ylap * 2;
-		si.nPage = static_cast<int> (GetTransform().doubleDeScale(rect.Height()));
-		si.nPos = static_cast<int> (GetTransform().GetOrigin().y) + Ylap;
-		si.fMask = SIF_PAGE | SIF_POS | SIF_RANGE | SIF_DISABLENOSCROLL;
-		SetScrollInfo(SB_VERT, &si, TRUE);
+		si.nMin   = 0;
+		si.nMax   = pgBoundPt.x + Xlap * 2;
+		si.nPage  = static_cast<int> (trnsFrm.doubleDeScale(rect.Width()));
+		si.nPos   = static_cast<int> (trnsFrm.GetOrigin().x) + Xlap;
+		si.fMask  = SIF_PAGE | SIF_POS | SIF_RANGE | SIF_DISABLENOSCROLL;
+		SetScrollInfo(SB_HORZ, &si, /*bRedraw*/TRUE);
+
+		si.cbSize = sizeof(SCROLLINFO);
+		si.nMin   = 0;
+		si.nMax   = pgBoundPt.y + Ylap * 2;
+		si.nPage  = static_cast<int> (trnsFrm.doubleDeScale(rect.Height()));
+		si.nPos   = static_cast<int> (trnsFrm.GetOrigin().y) + Ylap;
+		si.fMask  = SIF_PAGE | SIF_POS | SIF_RANGE | SIF_DISABLENOSCROLL;
+		SetScrollInfo(SB_VERT, &si, /*bRedraw*/TRUE);
 
 		if (hRuler != NULL) hRuler->RedrawWindow();
 		if (vRuler != NULL) vRuler->RedrawWindow();
 		Invalidate();
 	}
 
-	m_old_zoom_factor = GetTransform().GetZoomFactor();
+	//m_old_zoom_factor = trnsFrm.GetZoomFactor();
 }
 
 void CTinyCadView::SetScrollCentre(CDPoint c)

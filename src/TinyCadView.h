@@ -58,7 +58,7 @@ protected:
 	int m_panning;
 
 	// The previous zoom
-	double m_old_zoom_factor;
+	//double m_old_zoom_factor;
 
 	UINT ClipboardFormat; // The registered clipboard format
 
